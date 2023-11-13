@@ -30,7 +30,52 @@ If given more time, a few things ccould have ben improved, namely:
 - Pagination is tasks
 - More atomic components
 - Secure User logout
+- Improved UI ( such as, handling active route)
 
+
+Run the application
+```bash
+docker compose up -d
+```
+You application should now be up and running on `http://localhost:3000/v1`\
+Check out [API Documentation](#api-documentation) for available endpoints.
+
+### NOTE: I ran into an issue with docker. As such, you might see docker spinned up correctly but the is inaccessible, kindly use the manual installation below. I'll get on with it afterwards
+
+## Manual Installation (Frintend)
+
+Clone the repo:
+
+```bash
+git clone --depth 1 https://github.com/iAmCodeHead/fullstack-task-management-app.git project-name
+cd project-name/client
+```
+
+Install the dependencies:
+
+```bash
+npm install
+```
+
+Set the environment variables:
+
+```bash
+cp .env.local .env
+
+# open .env and modify the environment variables (if needed)
+```
+
+## Commands
+
+Running locally:
+
+```bash
+npm run dev
+```
+
+## Inspiration
+
+- [Tirso Lecointere - codepen](https://codepen.io/tirsolecointere/pen/oNwpRdd)
 
 ## Backend
 
@@ -102,7 +147,7 @@ To run the project quickly on your local (please ensure you have docker installe
 Clone the repo:
 
 ```bash
-git clone --depth 1 https://github.com/iAmCodeHead/backend-worksample project-name
+git clone --depth 1 https://github.com/iAmCodeHead/fullstack-task-management-app.git project-name
 cd project-name
 ```
 Set the environment variables:
@@ -120,13 +165,15 @@ docker compose up -d
 You application should now be up and running on `http://localhost:3000/v1`\
 Check out [API Documentation](#api-documentation) for available endpoints.
 
-## Manual Installation
+### NOTE: I ran into an issue with docker. As such, you might see docker spinned up correctly but the is inaccessible, kindly use the manual installation below. I'll get on with it afterwards
+
+## Manual Installation (Backend)
 
 Clone the repo:
 
 ```bash
-git clone --depth 1 https://github.com/iAmCodeHead/backend-worksample project-name
-cd project-name
+git clone --depth 1 https://github.com/iAmCodeHead/fullstack-task-management-app.git project-name
+cd project-name/server
 ```
 
 Install the dependencies:
@@ -230,17 +277,21 @@ MONGODB_URL=mongodb://127.0.0.1:27017/your_database_name
 
 ## API Documentation
 
-To view the list of available APIs and their specifications, run the server and go to `http://localhost:3000/v1/docs` in your browser. This documentation page is automatically generated using the [swagger](https://swagger.io/) definitions written as comments in the route files.
+You can view the list of available APIs and their specifications here: 
+https://documenter.getpostman.com/view/27455894/2s9YXk4gvD
 
 ### API Endpoints
 
 List of available routes:
 
-**User routes**:\
-`POST /v1/users` - create a user\
-`GET /v1/users` - get all users\
-`GET /v1/users?sortBy=created:desc` - get all users in descending order by ```created``` field\
-`GET /v1/users?sortBy=created:asc` - get all users in ascending order by ```created``` field
+**Task routes**:\
+`POST /v1/task` - create a task (Authorization required)\
+`GET /v1/task/:taskId` - get a task (Authorization required)\
+`GET /v1/task?limit=10` - To fetch all existing tasks (Authorization required)\
+`PATCH /v1/task/:taskId` - To update an existing task (Authorization required)\
+`DELETE /v1/task/:taskId` - To delete an existing task (Authorization required)
+`GET /v1/task/overview` - get tasks overview for logged in user (Authorization required)\
+...more endpoints in the link above.
 
 ## Error Handling
 
@@ -250,8 +301,8 @@ Controllers should try to catch the errors and forward them to the error handlin
 
 ```typescript
   try {
-    const user = await userService.createUser(req.body);
-    res.status(httpStatus.CREATED).send(user);
+    const task = await taskService.createTask(req.body);
+    res.status(httpStatus.CREATED).json(task);
   } catch (error) {
     next(error);
   }
@@ -273,15 +324,11 @@ The app has a utility ApiError class to which you can attach a response code and
 For example, if you are trying to get a user from the DB who is not found, and you want to send a 404 error, the code should look something like:
 
 ```typescript
-import httpStatus from 'http-status';
-import ApiError from '../errors/ApiError';
-import User from './user.model';
+import { ITask } from './tasks.interface';
+import Task from './tasks.model';
 
-const getUser = async (userId) => {
-  const user = await User.findById(userId);
-  if (!user) {
-    throw new ApiError(httpStatus.NOT_FOUND, 'User not found');
-  }
+export const fetchTask = async (taskId: string | undefined, userId: string | undefined): Promise<ITask | null> => {
+  return Task.findOne({ _id: taskId, userId });
 };
 ```
 
@@ -289,19 +336,19 @@ const getUser = async (userId) => {
 
 Request data is validated using [Joi](https://joi.dev/). Check the [documentation](https://joi.dev/api/) for more details on how to write Joi validation schemas.
 
-The validation schemas are defined in the `src/validations` directory and are used in the routes by providing them as parameters to the `validate` middleware.
+The validation schemas are defined in each `module` directory and are used in the routes by providing them as parameters to the `validate` middleware.
 
 ```typescript
-import express, { Router } from 'express';
-import { userController, userValidation } from '../../modules/user';
-import validate from '../../modules/validate/validate.middleware';
+import authenticate from '../../middleware/auth.middleware';
+import { taskController, taskValidation } from '../../modules/tasks';
+import validate from '../../middleware/validate.middleware';
 
 const router = express.Router();
 
 router
-  .route('/')
-  .post(validate(userValidation.createUser), userController.createUser)
-  .get(validate(userValidation.getUsers), userController.getUsers);
+  .post('/', authenticate, validate(taskValidation.createTask), taskController.createTask)
+  .get('/', authenticate, taskController.getTasks)
+  .get('/overview', authenticate, taskController.getTasksOverview)
 ```
 
 ## Logging
@@ -364,9 +411,9 @@ The paginate plugin adds the `paginate` static method to the mongoose schema.
 Adding this plugin to the `User` model schema will allow you to do the following:
 
 ```typescript
-const queryUsers = async (filter, options) => {
-  const users = await User.paginate(filter, options);
-  return users;
+export const fetchTasks = async (filter: Record<string, any>, options: IOptions): Promise<QueryResult> => {
+  const tasks = await Task.paginate(filter, options);
+  return tasks;
 };
 ```
 
@@ -393,6 +440,12 @@ The `paginate` method returns a Promise, which fulfills with an object having th
 }
 ```
 
+## Improvements
+If given more time, a few things ccould have ben improved, namely:
+- A Caching mechanism on the GET routes for more efficient reads
+- A strict password validation
+- Token expiry mechanism upon logout request
+
 ## Linting
 
 Linting is done using [ESLint](https://eslint.org/) and [Prettier](https://prettier.io).
@@ -405,6 +458,6 @@ To prevent a certain file or directory from being linted, add it to `.eslintigno
 
 To maintain a consistent coding style across different IDEs, the project contains `.editorconfig`
 
-## Inspirations
+## Inspiration
 
-- [node-express-boilerplate - saisilinus](https://github.com/saisilinus/node-express-mongoose-typescript-boilerplate)
+- [node-express-boilerplate](https://github.com/iAmCodeHead/backend-worksample)
