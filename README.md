@@ -8,6 +8,8 @@ The frontend is built with reack and TypeScript. Notable libraries used include 
 - [MaterialUI](https://mui.com/)
 - [TailwindCss](https://tailwindcss.com/)
 
+![image](https://github.com/iAmCodeHead/fullstack-task-management-app/assets/35177481/c44b8c04-5c09-4fdf-86a6-0aa76565b934)
+
 ## Features
 - **User Authtentication**
 - **User Authourization**
