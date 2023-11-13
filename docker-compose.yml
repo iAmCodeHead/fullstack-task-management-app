@@ -1,0 +1,57 @@
+version: '3'
+
+services:
+
+  client:
+    build: 
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: tsk-mgt-client
+    command: npm run dev
+    depends_on:
+      - server
+    ports:
+      - "3000:3000"
+    networks:
+      - app-network
+  mongo:
+    container_name: mongo
+    image: mongo:4.2.1-bionic
+    restart: always
+    ports:
+      - "27018:27017"
+    networks:
+      - app-network
+    volumes:
+      - ./data:/data/db
+  server:
+    container_name: tsk-mgt-server
+    build: 
+      context: ./server
+      dockerfile: Dockerfile
+      target: base
+    restart: always
+    env_file: ./server/.env
+    expose:
+      - "5000"
+    ports:
+      - "5000:5000"
+    environment: 
+      - MONGODB_URL=mongodb://mongo:27017/tryHackMe
+    links: 
+      - mongo  
+    depends_on:
+      - mongo  
+    networks:
+      - app-network
+    command: yarn dev -L
+
+networks:
+  app-network:
+    driver: bridge    
+
+volumes:
+    data-volume:
+    node_modules:
+    web-root:
+      driver: local
